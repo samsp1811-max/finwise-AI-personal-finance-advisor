@@ -1,6 +1,9 @@
 # FinWise AI – Personal Finance Advisor
 
 A polished full-stack AI personal finance dashboard built with React + TypeScript + Tailwind CSS + Recharts and a Python Flask backend with Gemini integration.
+Demo Link: https://super-heliotrope-452a64.netlify.app/
+
+Full Document: https://1drv.ms/w/c/C7AB96B2FFD18EF6/IQBruzUkKKYOSqRtPyhoOxMlARY8MzzrhEq9n1IjkgYQvk0?e=6iqvug
 
 ## Features
 
