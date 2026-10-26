@@ -1,0 +1,80 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FinWise AI – Personal Finance Advisor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--ink:#1e293b;--mut:#64748b;--line:#e2e8f0;--ac:#4f46e5;--bg:#f8fafc}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:#fff;border-bottom:1px solid var(--line);padding:14px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+h1{font-size:19px;margin:0}main{max-width:1100px;margin:auto;padding:20px;display:grid;gap:16px}
+.g{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.c{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}h2{font-size:16px;margin:0 0 10px}
+.big{font-size:24px;font-weight:700}.mut{color:var(--mut);font-size:13px}
+input,select,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;width:100%;margin:3px 0}
+button{background:var(--ac);color:#fff;border:0;font-weight:600;cursor:pointer}button.s{background:#fff;color:var(--ac);border:1px solid #c7d2fe;width:auto}
+button:disabled{opacity:.5}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+.bar{height:10px;background:var(--line);border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ac)}
+.bad{color:#b91c1c}.row{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+#chat{max-height:240px;overflow:auto}.me{text-align:right;color:var(--ac)}#err{color:#b91c1c;padding:0 20px}
+</style></head><body>
+<header><h1>FinWise AI</h1><div style="display:flex;gap:8px;align-items:center">
+<input type="month" id="month" style="width:auto"><button class="s" onclick="seed()">Try Demo</button><button class="s" onclick="reset()">Reset</button></div></header>
+<div id="err" role="alert"></div>
+<main>
+{% if demo %}<div class="c mut">Demo mode: no GEMINI_API_KEY set, so AI text uses built-in rules.</div>{% endif %}
+<div class="g" id="cards"></div>
+<div class="g">
+ <div class="c"><h2>Log income</h2><input id="isrc" placeholder="Source (salary, client, allowance)"><input id="iamt" type="number" min="0" placeholder="Amount"><button onclick="addIncome()">Add income</button></div>
+ <div class="c"><h2>Log expense</h2><select id="ecat"></select><input id="eamt" type="number" min="0" placeholder="Amount"><input id="enote" placeholder="Note (optional)"><button onclick="addExpense()">Add expense</button></div>
+ <div class="c"><h2>New goal</h2><input id="gname" placeholder="Goal name"><input id="gtar" type="number" min="0" placeholder="Target amount"><button onclick="addGoal()">Add goal</button></div>
+</div>
+<div class="g"><div class="c"><h2>Spending by category</h2><canvas id="pie"></canvas></div><div class="c"><h2>Income vs expenses</h2><canvas id="bar"></canvas></div></div>
+<div class="g">
+ <div class="c"><h2>Budget vs spending</h2><div id="bud" class="mut">No budget yet.</div><button id="gb" onclick="genBudget()">Generate AI budget plan</button><div id="sugg"></div></div>
+ <div class="c"><h2>Goals</h2><div id="goals"></div></div>
+</div>
+<div class="g">
+ <div class="c"><h2>AI monthly summary</h2><p id="sum" class="mut">Generate a report for the selected month.</p><button id="gs" onclick="summary()">Generate summary</button></div>
+ <div class="c"><h2>Ask FinWise AI</h2><div id="chat"></div><input id="q" placeholder="Where am I spending too much?" onkeydown="if(event.key==='Enter')ask()"><button onclick="ask()">Ask</button></div>
+</div>
+<div class="c"><h2>Expenses this month</h2><div id="exps"></div></div>
+<p class="mut">FinWise AI provides estimates and educational financial insights. It does not provide professional financial, investment, tax, or legal advice, and its recommendations do not guarantee financial outcomes.</p>
+</main>
+<script>
+const CATS=["Housing","Food","Transport","Utilities","Education","Healthcare","Entertainment","Shopping","Other"];
+const $=s=>document.querySelector(s),M=()=>$('#month').value,inr=n=>'₹'+Math.round(n).toLocaleString('en-IN');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(u,m,b){try{const r=await fetch(u,{method:m||'GET',headers:{'Content-Type':'application/json'},body:b?JSON.stringify(b):undefined});
+ if(r.status===204)return;const j=await r.json();if(!r.ok)throw Error(j.error||'Request failed');$('#err').textContent='';return j}
+ catch(e){$('#err').textContent=e.message;throw e}}
+$('#month').value=new Date().toISOString().slice(0,7);$('#month').onchange=load;
+$('#ecat').innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
+let pie,bar;
+async function load(){
+ const r=await api('/api/report?month='+M()),ex=await api('/api/expenses?month='+M());
+ $('#cards').innerHTML=[['Income',r.income],['Expenses',r.expenses],['Net savings',r.net],['Savings rate',null]].map(([t,v],i)=>
+  `<div class="c"><div class="mut">${t}</div><div class="big ${i==2&&v<0?'bad':''}">${v===null?r.savings_rate.toFixed(0)+'%':inr(v)}</div></div>`).join('');
+ const k=Object.keys(r.by_category);pie&&pie.destroy();bar&&bar.destroy();
+ pie=new Chart($('#pie'),{type:'doughnut',data:{labels:k,datasets:[{data:k.map(x=>r.by_category[x]),backgroundColor:['#4f46e5','#6366f1','#818cf8','#a5b4fc','#0ea5e9','#38bdf8','#94a3b8','#cbd5e1','#64748b']}]}});
+ bar=new Chart($('#bar'),{type:'bar',data:{labels:['Income','Expenses'],datasets:[{data:[r.income,r.expenses],backgroundColor:['#4f46e5','#f59e0b']}]},options:{plugins:{legend:{display:false}}}});
+ const lim=r.limits;$('#bud').innerHTML=Object.keys(lim).length?Object.keys(lim).map(c=>{const s=r.by_category[c]||0,p=Math.min(100,s/lim[c]*100);
+  return `<div style="margin:6px 0"><div class="row" style="border:0"><span>${esc(c)}</span><span class="${s>lim[c]?'bad':''}">${inr(s)} / ${inr(lim[c])}</span></div><div class="bar"><i style="width:${p}%;${s>lim[c]?'background:#b91c1c':''}"></i></div></div>`}).join(''):'No budget yet.';
+ $('#goals').innerHTML=r.goals.length?r.goals.map(g=>`<div style="margin:8px 0"><div class="row" style="border:0"><b>${esc(g.name)}</b><span>${inr(g.saved)} / ${inr(g.target)}</span></div>
+  <div class="bar"><i style="width:${Math.min(100,g.saved/g.target*100)}%"></i></div><button class="s" onclick="fund(${g.id})">+ Add savings</button></div>`).join(''):'<span class="mut">No goals yet.</span>';
+ $('#exps').innerHTML=ex.length?ex.map(e=>`<div class="row"><span>${e.date} · ${esc(e.category)} ${esc(e.note||'')}</span><span>${inr(e.amount)} <button class="s" onclick="del(${e.id})">Delete</button></span></div>`).join(''):'<span class="mut">No expenses logged for this month.</span>';
+}
+const post=async(u,b)=>{await api(u,'POST',b);load()};
+const addIncome=()=>post('/api/incomes',{source:$('#isrc').value,amount:$('#iamt').value,date:M()+'-'+String(new Date().getDate()).padStart(2,'0')});
+const addExpense=()=>post('/api/expenses',{category:$('#ecat').value,amount:$('#eamt').value,note:$('#enote').value,date:M()+'-'+String(new Date().getDate()).padStart(2,'0')});
+const addGoal=()=>post('/api/goals',{name:$('#gname').value,target:$('#gtar').value});
+const del=async i=>{await api('/api/expenses/'+i,'DELETE');load()};
+const fund=async i=>{const a=prompt('Amount saved toward this goal:');if(a){await api('/api/goals/'+i,'PATCH',{add:a});load()}};
+const seed=async()=>{await api('/api/demo/seed','POST');load()};
+const reset=async()=>{if(confirm('Delete all data?')){await api('/api/reset','POST');load()}};
+async function busy(id,txt,fn){const b=$(id),o=b.textContent;b.disabled=true;b.textContent=txt;try{await fn()}finally{b.disabled=false;b.textContent=o}}
+const genBudget=()=>busy('#gb','FinWise AI is analyzing your finances...',async()=>{const p=await api('/api/budget/generate','POST');
+ $('#sugg').innerHTML=`<p class="mut">Suggested monthly savings: ${inr(p.target_savings)} (estimate)</p>`+p.suggestions.map(s=>`<div class="row"><span><b>${esc(s.title)}</b> (${esc(s.priority)})<br><span class="mut">${esc(s.explanation)}</span></span><span>~${inr(s.monthly_impact)}/mo</span></div>`).join('');load()});
+const summary=()=>busy('#gs','FinWise AI is analyzing your finances...',async()=>{$('#sum').textContent=(await api('/api/report/summary','POST',{month:M()})).summary});
+async function ask(){const q=$('#q').value.trim();if(!q)return;$('#chat').innerHTML+=`<div class="me">${esc(q)}</div>`;$('#q').value='';
+ try{const a=await api('/api/chat','POST',{question:q,month:M()});$('#chat').innerHTML+=`<div>${esc(a.answer)}</div>`}catch(e){}$('#chat').scrollTop=1e9}
+load();
+</script></body></html>
