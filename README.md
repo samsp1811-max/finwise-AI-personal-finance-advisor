@@ -4,7 +4,7 @@ A polished full-stack AI personal finance dashboard built with React + TypeScrip
 Demo Link: https://super-heliotrope-452a64.netlify.app/
 
 Full Document: https://1drv.ms/w/c/C7AB96B2FFD18EF6/IQBruzUkKKYOSqRtPyhoOxMlARY8MzzrhEq9n1IjkgYQvk0?e=6iqvug
-
+Demo video link:https://drive.google.com/drive/folders/1OThg_rOqc5ztCE7DckSoWHr6nA1PNNBr?usp=sharing
 ## Features
 
 - Landing page with Demo Mode
